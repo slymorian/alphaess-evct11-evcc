@@ -1,0 +1,29 @@
+[Unit]
+Description=AlphaESS Wallbox <-> EVCC MQTT-Bruecke (Modbus RTU Master)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Passe den Pfad an, falls das Skript woanders liegt:
+ExecStart=/usr/bin/python3 /root/wallbox_mqtt_bridge.py \
+    --port /dev/serial/by-id/HIER_DEINEN_AKTUELLEN_DONGLE_EINTRAGEN \
+    --baud 9600 \
+    --mqtt-host xxx.xxx.x.xxx \
+    --mqtt-port 1883 \
+    --mqtt-prefix alphaess/wallbox
+
+# Zugangsdaten kommen aus dieser Datei (siehe wallbox-mqtt-bridge.env),
+# NICHT aus der obigen Kommandozeile - so stehen sie nicht in "ps aux".
+EnvironmentFile=/etc/wallbox-mqtt-bridge.env
+
+Restart=on-failure
+RestartSec=10
+
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
