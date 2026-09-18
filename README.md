@@ -156,7 +156,7 @@ Siehe `wallbox_mqtt_bridge.py` für die Implementierung.
 - Bedeutung der Register 0x103/0x105/0x107 im Schreib-Block
 - Exakte Bedeutung von Register 9 vs. 7 (beide "lädt aktiv"?)
 - Verifikation der Pro-Phase-Annahme mit einem 3-phasigen Fahrzeug
-- Verhalten bei mehreren gleichzeitig ladenden Wallboxen an einer B3 (falls vorhanden)
+
 
 ## Danksagung / verwandte Projekte
 
