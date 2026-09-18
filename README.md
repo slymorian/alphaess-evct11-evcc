@@ -167,5 +167,4 @@ Siehe `wallbox_mqtt_bridge.py` für die Implementierung.
   zu OCPP-Problemen mit der EVCT11
 
 ## Lizenz
-
-Vorschlag: MIT — freie Nutzung, keine Gewähr. (Nach eigenem Ermessen anpassen.)
+MIT — freie Nutzung, keine Gewähr. 
