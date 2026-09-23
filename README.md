@@ -6,9 +6,9 @@ dem Ziel, die Wallbox **direkt über [EVCC](https://evcc.io)** zu steuern —
 unabhängig von der B3 und ohne AlphaESS-Cloud.
 
 **Hintergrund:** Solange die EVCT11 in der B3-Konfiguration eingetragen ist,
-kommuniziert sie ausschließlich mit der B3 (kein eigenes WLAN). EVCC kann sie
+kommuniziert sie ausschließlich mit dem Batteriesystem (in meinem Fall ein Storion Smile B3). EVCC kann sie
 dann nicht ansteuern. Nach Entfernen der Wallbox aus der B3-Konfiguration
-(durch den AlphaESS-Support) verliert sie ihren einzigen Kommunikationspartner
+(durch Installateur oder AlphaESS-Support, notwendig, um den B3 per EVCC anzusteuern) verliert die Wallbox ihren einzigen Kommunikationspartner
 — dieses Projekt liefert den Ersatz dafür.
 
 ⚠️ **Kein offizielles AlphaESS-Projekt. Nutzung auf eigene Gefahr.** Dieses
@@ -28,20 +28,13 @@ Ladeverhalten führen. Immer mit Aufsicht testen.
 - EVCC läuft als Home-Assistant-Add-on, angebunden über MQTT (nicht direkt
   per Modbus-Plugin — siehe [Warum MQTT-Brücke](#warum-eine-mqtt-brücke))
 
-## Die zentrale Erkenntnis: Rollen sind vertauscht
+## Rollen 
 
-Naheliegend wäre die Annahme, dass die Wallbox als Modbus-Master die B3
-abfragt. **Das Gegenteil ist der Fall:**
-
-- Die **B3 ist Master** (Unit-ID 1 aus ihrer Sicht als Ziel-Adresse), sie
+- Der **B3 ist Master** (Unit-ID 1 aus ihrer Sicht als Ziel-Adresse) und
   pollt die Wallbox alle ~200ms
 - Die **Wallbox ist Slave** (Unit-ID 1) und antwortet nur auf Anfragen —
   sie sendet nie von sich aus etwas
 
-Das erklärt auch, warum ein simpler "Slave-Emulator" (der nur passiv auf
-Anfragen der Wallbox wartet) nie funktioniert hat: Die Wallbox wartet ihrerseits
-auf einen Master, der sie anspricht. Zwei passive Teilnehmer reden nie
-miteinander.
 
 ## Elektrische Voraussetzungen
 
@@ -139,6 +132,7 @@ EVCC unterstützt zwar generische Modbus-Charger-Konfiguration, aber:
   MQTT einbinden
 
 Siehe `wallbox_mqtt_bridge.py` für die Implementierung.
+- eine vollwertige EVCC-Integration wäre super, für meine Zwecke aber erstmal nicht nötig. Wenn sich da jemand dran versuchen möchte... 
 
 ## Dateien in diesem Repo
 
