@@ -1,4 +1,4 @@
-# AlphaESS EVCT11 Wallbox per EVCC steuern (unabhängig von der SMILE-B3)
+# AlphaESS EVCT11 Wallbox per EVCC steuern (unabhängig von Wechselrichter und Batteriesystem)
 
 Reverse-Engineering des internen RS485-Modbus-Protokolls zwischen der
 AlphaESS SMILE-B3(-PLUS)-Batterie und der zugehörigen EVCT11-Wallbox, mit
