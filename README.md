@@ -134,6 +134,12 @@ In dieser Reihenfolge prüfen:
 3. **9600, 8N1** — und beim Konverter: TCP-Server-Modus, transparente
    Übertragung, richtiger Kanal bzw. richtige IP.
 
+**Sichtkontrolle am Konverter:** Die LEDs `LINK1` und `LINK2` zeigen bei
+meinem Gerät, ob gerade ein Programm per TCP mit dem jeweiligen Kanal
+verbunden ist. Ist die LED eines Kanals dunkel, fragt niemand diesen Bus ab —
+bei mir war so auf einen Blick zu sehen, dass die MQTT-Brücke nach einem
+Verbindungsabbruch nicht mehr mit der Wallbox sprach.
+
 ⚠️ **Lessons Learned / Sackgasse, die Zeit gekostet hat:** Ein Großteil der
 ursprünglichen Fehlersuche in diesem Projekt drehte sich um vermeintlich
 fehlende Terminierung, Bias-Widerstände und eine gemeinsame Masse — mit
