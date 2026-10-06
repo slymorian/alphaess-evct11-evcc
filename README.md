@@ -87,7 +87,12 @@ Einstellungen je Kanal:
   Konverter reicht die RTU-Bytes nur durch)
 - Seriell: **9600 Baud, 8 Datenbits, keine Parität, 1 Stoppbit**
 - Port: 4196 (Standard)
-<img width="710" height="947" alt="grafik" src="https://github.com/user-attachments/assets/e5fcbf56-1d6a-4908-939b-200b2cec01f8" />
+
+<img width="710" height="947" alt="Waveshare 2-CH RS485 TO ETH (B), angeschlossen in einem Abzweigkasten" src="https://github.com/user-attachments/assets/e5fcbf56-1d6a-4908-939b-200b2cec01f8" />
+
+*Der Konverter bei mir im Abzweigkasten: oben Stromversorgung und Netzwerk,
+unten die RS485-Adern der beiden Kanäle, die über Klemmenplatinen mit
+RJ45-Buchse zu den Geräten führen.*
 
 ### Was sich in der Software ändert
 
