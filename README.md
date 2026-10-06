@@ -87,6 +87,7 @@ Einstellungen je Kanal:
   Konverter reicht die RTU-Bytes nur durch)
 - Seriell: **9600 Baud, 8 Datenbits, keine Parität, 1 Stoppbit**
 - Port: 4196 (Standard)
+<img width="710" height="947" alt="grafik" src="https://github.com/user-attachments/assets/e5fcbf56-1d6a-4908-939b-200b2cec01f8" />
 
 ### Was sich in der Software ändert
 
