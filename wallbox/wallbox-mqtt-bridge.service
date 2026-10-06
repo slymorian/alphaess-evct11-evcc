@@ -23,6 +23,10 @@ ExecStart=/usr/bin/python3 /root/wallbox_mqtt_bridge.py \
 # NICHT aus der obigen Kommandozeile - so stehen sie nicht in "ps aux".
 EnvironmentFile=/etc/wallbox-mqtt-bridge.env
 
+# Ausgabe ungepuffert, damit Meldungen sofort im Journal erscheinen
+# (journalctl -u wallbox-mqtt-bridge -f) und nicht erst minutenweise gebuendelt.
+Environment=PYTHONUNBUFFERED=1
+
 Restart=on-failure
 RestartSec=10
 

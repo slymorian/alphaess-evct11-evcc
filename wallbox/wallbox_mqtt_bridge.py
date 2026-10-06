@@ -418,6 +418,12 @@ def main():
     ap.add_argument("--mqtt-prefix", default="alphaess/wallbox")
     args = ap.parse_args()
 
+    # Meldungen zeilenweise ausgeben. Ohne das puffert Python die Ausgabe,
+    # sobald sie nicht auf ein Terminal geht (systemd/journald, Pipe, Datei):
+    # Statuszeilen kämen dann nur alle paar Minuten gebündelt im Journal an.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+
     # Umgebungsvariablen als Fallback, falls nicht per Kommandozeile übergeben
     if args.mqtt_user is None:
         args.mqtt_user = os.environ.get("MQTT_USER")
