@@ -25,8 +25,12 @@ echte B3 physisch vom Bus getrennt ist! Zuerst OHNE angestecktes
 Fahrzeug testen.
 =======================================================================
 
-Beispiel:
+Beispiel (USB-RS485-Adapter):
     python3 b3_master_emulator.py --port /dev/ttyUSB0 --baud 9600
+
+Beispiel (RS485-Ethernet-Konverter, transparenter TCP-Server-Modus;
+Baudrate/8N1 werden dann am Konverter eingestellt):
+    python3 b3_master_emulator.py --port socket://xxx.xxx.x.xxx:4196
 """
 import argparse
 import json
@@ -272,7 +276,8 @@ def try_extract_frame(buf: bytes, unit_id: int):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--port", default="/dev/ttyUSB0",
+                     help="Serielles Gerät oder pyserial-URL, z.B. socket://IP:PORT für einen RS485-Ethernet-Konverter")
     ap.add_argument("--baud", type=int, default=9600)
     ap.add_argument("--unit-id", type=int, default=1)
     ap.add_argument("--poll-interval", type=float, default=0.2,
@@ -301,8 +306,10 @@ def main():
     print("Zuerst OHNE angestecktes Fahrzeug testen.")
     print("=" * 70)
 
-    ser = serial.Serial(
-        port=args.port, baudrate=args.baud,
+    # serial_for_url() nimmt einen Gerätepfad ODER eine pyserial-URL wie
+    # socket://IP:PORT (transparenter RS485-Ethernet-Konverter).
+    ser = serial.serial_for_url(
+        args.port, baudrate=args.baud,
         bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=1,
         timeout=0.02,
     )

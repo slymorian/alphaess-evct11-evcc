@@ -1,0 +1,44 @@
+# evcc-beispiel.yaml — AlphaESS Smile-B3 in EVCC, als YAML zum Nachlesen
+#
+# EVCC bringt für den Speicher ein eigenes Template mit ("alpha-ess-smile",
+# in der Oberfläche: Alpha ESS → Storion SMILE). Es ist KEIN eigenes Skript
+# nötig. Am einfachsten richtet man das Gerät in der EVCC-Oberfläche ein;
+# diese Datei zeigt nur, welche Einstellungen dort den beiden
+# Anbindungswegen entsprechen — und dient als Vorlage für alle, die EVCC
+# noch über die evcc.yaml konfigurieren.
+#
+# Voraussetzungen (siehe README, Teil B):
+#   - Der B3 ist Modbus-Slave mit Adresse 85 (0x55), 9600 Baud, 8N1.
+#   - Für die aktive Batteriesteuerung müssen im B3 einmalig durchgehende
+#     Netzlade-Zeitfenster hinterlegt sein, der Schalter "Netzladen" selbst
+#     bleibt aus. Details: https://docs.evcc.io/de/meters/alpha-ess-storion-smile
+#
+# Platzhalter (xxx.xxx.x.xxx, HIER_...) durch eigene Werte ersetzen.
+# Von den beiden Varianten genau EINE verwenden.
+
+meters:
+  - name: batterie
+    type: template
+    template: alpha-ess-smile
+    usage: battery            # weitere Zähler desselben Geräts: usage: grid / usage: pv
+    id: 85                    # Modbus-Adresse des B3 (0x55)
+
+    # --- Variante 1: USB-RS485-Adapter ------------------------------------
+    # In der Oberfläche: Verbindung "RS485" (seriell)
+    modbus: rs485serial
+    device: /dev/serial/by-id/HIER_DEINEN_ADAPTER_EINTRAGEN
+    baudrate: 9600
+    comset: "8N1"
+
+    # --- Variante 2: RS485-Ethernet-Konverter ------------------------------
+    # In der Oberfläche: Verbindung "Netzwerk", Protokoll RTU (nicht TCP!).
+    # Der Konverter reicht die Bytes nur transparent durch, auf der Leitung
+    # bleibt es Modbus RTU. 9600 8N1 werden am Konverter eingestellt.
+    # modbus: rs485tcpip
+    # host: xxx.xxx.x.xxx     # IP des Konverter-Kanals, an dem der B3 hängt
+    # port: 4196              # Standard-Port der Waveshare-Konverter
+
+# Wer die Verbindung von Hand ohne Template beschreibt (type: custom),
+# schreibt dasselbe so:
+#   Variante 1:  device: /dev/...   baudrate: 9600   comset: 8N1   id: 85
+#   Variante 2:  uri: xxx.xxx.x.xxx:4196   rtu: true   id: 85

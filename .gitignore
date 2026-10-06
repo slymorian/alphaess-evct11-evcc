@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Ausgefüllte Zugangsdaten gehören nicht ins Repo — nur die .example-Vorlage
+*.env
+
+# Mitschnitte und Messergebnisse der Tools (können Geräte-IDs enthalten)
+*.bin
+rs485_capture_*.csv
+sweep_results.csv
+b3_write_override.json

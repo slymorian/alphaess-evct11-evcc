@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 rs485_capture.py — passives Mitschneiden eines RS485-Busses über einen
-USB-RS485-Dongle. Schreibt zwei Dateien:
+USB-RS485-Dongle oder einen RS485-Ethernet-Konverter. Schreibt zwei Dateien:
 
   <out>.bin  – die rohen Bytes exakt in Empfangsreihenfolge (für den Decoder)
   <out>.csv  – ein Log mit Zeitstempel, Delta zur letzten Chunk-Ankunft,
@@ -12,8 +12,12 @@ Wichtig: Es wird NIE geschrieben (ser.write()) — reines Lauschen.
 Der Adapter muss also weiterhin nur an der Sniffer-Verbindung hängen,
 B3 und Wallbox bleiben unabhängig davon über den Splitter verbunden.
 
-Beispiel:
+Beispiel (USB-RS485-Adapter):
     python3 rs485_capture.py --port /dev/ttyUSB0 --baud 9600 --out capture1
+
+Beispiel (RS485-Ethernet-Konverter, transparenter TCP-Server-Modus;
+Baudrate/Parität werden dann am Konverter eingestellt):
+    python3 rs485_capture.py --port socket://xxx.xxx.x.xxx:4196 --out capture1
 
 Zum Stoppen: Strg+C. Danach steht eine Zusammenfassung in der Konsole.
 """
@@ -31,7 +35,8 @@ except ImportError:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--port", default="/dev/ttyUSB0", help="serielles Gerät des Sniffer-Dongles")
+    ap.add_argument("--port", default="/dev/ttyUSB0",
+                    help="serielles Gerät des Sniffer-Dongles oder pyserial-URL, z.B. socket://IP:PORT")
     ap.add_argument("--baud", type=int, default=9600, help="Baudrate (B3-Standard: 9600)")
     ap.add_argument("--parity", default="N", choices=["N", "E", "O"], help="Parität (8N1-Standard: N)")
     ap.add_argument("--stopbits", type=float, default=1, help="Stopbits (Standard: 1)")
@@ -44,8 +49,10 @@ def main():
 
     parity_map = {"N": serial.PARITY_NONE, "E": serial.PARITY_EVEN, "O": serial.PARITY_ODD}
 
-    ser = serial.Serial(
-        port=args.port,
+    # serial_for_url() nimmt einen Gerätepfad ODER eine pyserial-URL wie
+    # socket://IP:PORT (transparenter RS485-Ethernet-Konverter).
+    ser = serial.serial_for_url(
+        args.port,
         baudrate=args.baud,
         bytesize=serial.EIGHTBITS,
         parity=parity_map[args.parity],

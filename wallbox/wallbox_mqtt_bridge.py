@@ -29,9 +29,29 @@ Dieses Skript sendet AKTIV auf dem RS485-Bus (wie b3_master_emulator.py).
 Nur verwenden, wenn die echte B3 physisch vom Bus getrennt ist!
 =======================================================================
 
-Beispiel:
+Anbindung der Wallbox (--port):
+    /dev/ttyUSB0 oder /dev/serial/by-id/...   USB-RS485-Adapter
+    socket://IP:PORT                          transparenter RS485-Ethernet-
+                                              Konverter (TCP-Server-Modus);
+                                              Baudrate/8N1 werden dann am
+                                              Konverter eingestellt, --baud
+                                              wird ignoriert
+
+Bricht die Verbindung ab (Adapter gezogen, Konverter/Netzwerk weg) oder
+antwortet die Wallbox länger nicht, wird die Verbindung automatisch neu
+aufgebaut (siehe --reconnect-delay / --reconnect-after). Solange die
+Verbindung fehlt, bleiben die zuletzt gelesenen Werte auf MQTT stehen.
+
+Beispiel (USB-Adapter):
     python3 wallbox_mqtt_bridge.py \\
         --port /dev/ttyUSB0 --baud 9600 \\
+        --mqtt-host xxx.xxx.x.xxx --mqtt-port 1883 \\
+        --mqtt-user DEIN_USER --mqtt-pass DEIN_PASSWORT \\
+        --mqtt-prefix alphaess/wallbox
+
+Beispiel (RS485-Ethernet-Konverter):
+    python3 wallbox_mqtt_bridge.py \\
+        --port socket://xxx.xxx.x.xxx:4196 \\
         --mqtt-host xxx.xxx.x.xxx --mqtt-port 1883 \\
         --mqtt-user DEIN_USER --mqtt-pass DEIN_PASSWORT \\
         --mqtt-prefix alphaess/wallbox
@@ -167,6 +187,9 @@ class SharedState:
         # Statistik
         self.reads_ok = 0
         self.writes_ok = 0
+        # Zustand der Verbindung zur Wallbox (seriell oder socket://)
+        self.bus_connected = False
+        self.reconnects = 0
 
     def current_write_regs(self):
         with self.lock:
@@ -197,64 +220,117 @@ class SharedState:
 # Modbus-Thread: pollt die Wallbox, schreibt den aktuell gewünschten Sollwert
 # ---------------------------------------------------------------------------
 
-def modbus_loop(state: SharedState, args, stop_event: threading.Event):
-    ser = serial.Serial(
-        port=args.port, baudrate=args.baud,
+def open_port(args):
+    """Öffnet die Verbindung zur Wallbox.
+
+    serial_for_url() nimmt sowohl einen normalen Gerätepfad (/dev/ttyUSB0,
+    /dev/serial/by-id/...) als auch eine pyserial-URL wie socket://IP:PORT
+    für einen transparenten RS485-Ethernet-Konverter. Bei socket:// haben
+    Baudrate/Parität hier keine Wirkung — die stellt man am Konverter ein."""
+    return serial.serial_for_url(
+        args.port, baudrate=args.baud,
         bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=1,
         timeout=0.02,
     )
-    print(f"[Modbus] Verbunden auf {args.port} @ {args.baud} 8N1")
 
+
+def modbus_session(ser, state: SharedState, args, stop_event: threading.Event):
+    """Pollt die Wallbox über eine offene Verbindung, bis stop_event gesetzt
+    ist. Kehrt vorzeitig zurück, wenn länger als --reconnect-after Sekunden
+    kein gültiger Frame mehr ankam (dann baut modbus_loop die Verbindung neu
+    auf). Verbindungsfehler kommen als Exception aus read()/write()."""
     buf = bytearray()
     last_poll = 0.0
     last_write = 0.0
     awaiting = None
+    last_rx = time.monotonic()  # letzter gültiger Frame (oder Sitzungsbeginn)
 
-    try:
-        while not stop_event.is_set():
-            now = time.monotonic()
-            data = ser.read(256)
-            if data:
-                buf.extend(data)
+    while not stop_event.is_set():
+        now = time.monotonic()
+        data = ser.read(256)
+        if data:
+            buf.extend(data)
 
-            while buf:
-                status, payload = try_extract_frame(bytes(buf), args.unit_id)
-                if status == 'incomplete':
-                    break
-                if status == 'discard1':
-                    del buf[0]
-                    continue
-                frame_len, kind, info = payload
-                if kind == 'read_response' and info and len(info) == 19:
-                    with state.lock:
-                        state.current_a = info[1] / 10.0
-                        state.power_w = info[3]
-                        state.connected = info[16] > CONNECTED_REG_THRESHOLD
-                        state.last_raw_regs = list(info)
-                        state.last_read_ts = now
-                        state.reads_ok += 1
-                    awaiting = None
-                elif kind == 'write_ack':
-                    state.writes_ok += 1
-                    awaiting = None
-                del buf[:frame_len]
-
-            if awaiting is not None and (now - awaiting) > 0.3:
+        while buf:
+            status, payload = try_extract_frame(bytes(buf), args.unit_id)
+            if status == 'incomplete':
+                break
+            if status == 'discard1':
+                del buf[0]
+                continue
+            frame_len, kind, info = payload
+            if kind == 'read_response' and info and len(info) == 19:
+                with state.lock:
+                    state.current_a = info[1] / 10.0
+                    state.power_w = info[3]
+                    state.connected = info[16] > CONNECTED_REG_THRESHOLD
+                    state.last_raw_regs = list(info)
+                    state.last_read_ts = now
+                    state.reads_ok += 1
                 awaiting = None
+                last_rx = now
+            elif kind == 'write_ack':
+                state.writes_ok += 1
+                awaiting = None
+                last_rx = now
+            del buf[:frame_len]
 
-            if awaiting is None:
-                if now - last_write >= args.write_interval:
-                    regs = state.current_write_regs()
-                    ser.write(build_write_request(args.unit_id, 0x0100, regs))
-                    last_write = now
-                    awaiting = now
-                elif now - last_poll >= args.poll_interval:
-                    ser.write(build_read_request(args.unit_id, 0x0091, 19))
-                    last_poll = now
-                    awaiting = now
-    finally:
-        ser.close()
-        print("[Modbus] Verbindung geschlossen.")
+        if awaiting is not None and (now - awaiting) > 0.3:
+            awaiting = None
+
+        if args.reconnect_after > 0 and (now - last_rx) > args.reconnect_after:
+            print(f"[Modbus] Seit {args.reconnect_after:.0f}s keine gültige Antwort der Wallbox "
+                  f"— Verbindung wird neu aufgebaut.", file=sys.stderr)
+            return
+
+        if awaiting is None:
+            if now - last_write >= args.write_interval:
+                regs = state.current_write_regs()
+                ser.write(build_write_request(args.unit_id, 0x0100, regs))
+                last_write = now
+                awaiting = now
+            elif now - last_poll >= args.poll_interval:
+                ser.write(build_read_request(args.unit_id, 0x0091, 19))
+                last_poll = now
+                awaiting = now
+
+
+def modbus_loop(state: SharedState, args, stop_event: threading.Event):
+    """Hält die Verbindung zur Wallbox dauerhaft aufrecht: öffnen, pollen,
+    und bei jedem Fehler (Adapter gezogen, TCP-Verbindung zum Konverter weg,
+    Konverter noch nicht erreichbar, keine Antworten mehr) nach
+    --reconnect-delay Sekunden neu verbinden — statt den Thread sterben zu
+    lassen, während der restliche Prozess scheinbar normal weiterläuft."""
+    ever_connected = False
+    while not stop_event.is_set():
+        ser = None
+        try:
+            ser = open_port(args)
+            with state.lock:
+                state.bus_connected = True
+                if ever_connected:
+                    state.reconnects += 1
+            ever_connected = True
+            print(f"[Modbus] Verbunden auf {args.port}"
+                  + ("" if "://" in args.port else f" @ {args.baud} 8N1"))
+            modbus_session(ser, state, args, stop_event)
+        except (serial.SerialException, OSError) as e:
+            print(f"[Modbus] Verbindungsfehler auf {args.port}: {e}", file=sys.stderr)
+        finally:
+            with state.lock:
+                state.bus_connected = False
+            if ser is not None:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+
+        if stop_event.is_set():
+            break
+        print(f"[Modbus] Neuer Verbindungsversuch in {args.reconnect_delay:.0f}s ...", file=sys.stderr)
+        stop_event.wait(args.reconnect_delay)
+
+    print("[Modbus] Verbindung geschlossen.")
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +396,19 @@ def mqtt_publish_loop(client, state: SharedState, args, stop_event: threading.Ev
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", default="/dev/ttyUSB0")
-    ap.add_argument("--baud", type=int, default=9600)
+    ap.add_argument("--port", default="/dev/ttyUSB0",
+                     help="Serielles Gerät (/dev/ttyUSB0, /dev/serial/by-id/...) oder pyserial-URL, "
+                          "z.B. socket://IP:PORT für einen RS485-Ethernet-Konverter")
+    ap.add_argument("--baud", type=int, default=9600,
+                     help="Baudrate (bei socket:// ohne Wirkung, dann am Konverter einstellen)")
     ap.add_argument("--unit-id", type=int, default=1)
     ap.add_argument("--poll-interval", type=float, default=0.2)
     ap.add_argument("--write-interval", type=float, default=2.0)
+    ap.add_argument("--reconnect-delay", type=float, default=5.0,
+                     help="Sekunden Wartezeit vor einem neuen Verbindungsversuch (Standard: 5)")
+    ap.add_argument("--reconnect-after", type=float, default=30.0,
+                     help="Verbindung neu aufbauen, wenn so viele Sekunden keine gültige Antwort "
+                          "der Wallbox kam (Standard: 30, 0 = aus)")
     ap.add_argument("--mqtt-host", required=True)
     ap.add_argument("--mqtt-port", type=int, default=1883)
     ap.add_argument("--mqtt-user", default=None,
@@ -370,7 +454,8 @@ def main():
             with state.lock:
                 print(f"[Status] Verbunden={state.connected} Strom={state.current_a:.1f}A Leistung={state.power_w}W "
                       f"enabled_wanted={state.enabled_wanted} maxcurrent={state.maxcurrent_a}A "
-                      f"reads={state.reads_ok} writes={state.writes_ok}")
+                      f"reads={state.reads_ok} writes={state.writes_ok} "
+                      f"bus={'ok' if state.bus_connected else 'GETRENNT'} reconnects={state.reconnects}")
                 print(f"         Rohregister (0x91-0xA3): {state.last_raw_regs}")
     except KeyboardInterrupt:
         print("\nBeendet.")

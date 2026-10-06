@@ -6,7 +6,12 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-# Passe den Pfad an, falls das Skript woanders liegt:
+# Passe den Pfad an, falls das Skript woanders liegt.
+#
+# --port, zwei Varianten (genau eine verwenden):
+#   USB-RS485-Adapter:          --port /dev/serial/by-id/HIER_DEINEN_AKTUELLEN_DONGLE_EINTRAGEN
+#   RS485-Ethernet-Konverter:   --port socket://xxx.xxx.x.xxx:4196
+# (Bei socket:// hat --baud keine Wirkung; 9600 8N1 dann am Konverter einstellen.)
 ExecStart=/usr/bin/python3 /root/wallbox_mqtt_bridge.py \
     --port /dev/serial/by-id/HIER_DEINEN_AKTUELLEN_DONGLE_EINTRAGEN \
     --baud 9600 \
